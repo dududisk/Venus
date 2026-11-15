@@ -13,7 +13,7 @@ import { GestureGuide } from './GestureGuide'
  * 'error' is not a phase: it overlays whatever phase is current while an error
  * message is up.
  */
-type HudState = Phase | 'error'
+type HudState = Phase | 'error' | 'deaf'
 
 const statusText: Record<HudState, string> = {
   offline: 'DESLIGADA',
@@ -25,6 +25,16 @@ const statusText: Record<HudState, string> = {
   tooling: 'USANDO FERRAMENTAS',
   speaking: 'FALANDO',
   error: 'ERRO',
+  deaf: 'VOZ INDISPONÍVEL — USE A CAIXA DE TEXTO',
+}
+
+/** The bridge's own MCP servers are named after the old project; show what
+ *  they do instead. Anything else (the user's servers) keeps its own name. */
+const SYSTEM_NAMES: Record<string, string> = {
+  jarvis: 'Painéis',
+  jarvis_ui: 'Interface',
+  jarvis_chrome: 'Navegador',
+  jarvis_eyes: 'Câmera',
 }
 
 /** The shape beside the status: dot, ring, spinner, bars or warning mark. */
@@ -239,7 +249,11 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
   // variable on the root carries a theme change into every .hud-* rule without
   // a single component knowing a theme exists.
   const colour = accentFor(phase, ui)
-  const state: HudState = error ? 'error' : phase
+  const deaf = useStore((s) => s.deaf)
+  // Busy phases still show what she is doing; idle ones would otherwise
+  // invite the user to speak to a microphone that is not there.
+  const idle = phase === 'dormant' || phase === 'waking' || phase === 'listening'
+  const state: HudState = error ? 'error' : deaf && idle ? 'deaf' : phase
 
   useEffect(() => {
     // The ground has to be set on the document, not painted here: the HUD sits
@@ -289,7 +303,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
           {connected.map((c) => (
             <div key={c} className="rail-item">
               <span className="tick" />
-              {c}
+              {SYSTEM_NAMES[c.toLowerCase()] ?? c}
             </div>
           ))}
           <div className="rail-item">
@@ -393,7 +407,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
 
       <footer className="hud-bottom">
         <span className="hint">
-          diga <b>“Venus”</b> · <kbd>/</kbd> para escrever · <kbd>Space</kbd> para falar · <kbd>G</kbd> mãos
+          diga <b>“Venus”</b> · <kbd>/</kbd> para escrever · <kbd>Espaço</kbd> para falar · <kbd>G</kbd> mãos
           {voice && (
             <>
               {' · '}

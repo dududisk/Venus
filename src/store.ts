@@ -220,6 +220,9 @@ type State = {
   activeTool: string | null
   error: string | null
   connected: string[]
+  /** The voice loop could not start (no microphone, or no local transcriber):
+   *  she can still be typed to, but not spoken to. */
+  deaf: boolean
   /** Name of the speech-synthesis voice in use, shown in the HUD. */
   voice: string
   /** Whether the camera is on and hands are being tracked. Store-backed rather
@@ -258,6 +261,7 @@ type State = {
   setActiveTool: (t: string | null) => void
   setError: (e: string | null) => void
   setConnected: (c: string[]) => void
+  setDeaf: (deaf: boolean) => void
   pushTurn: (t: Turn) => void
   appendToLastTurn: (text: string) => void
 
@@ -278,6 +282,7 @@ export const useStore = create<State>((set) => ({
   activeTool: null,
   error: null,
   connected: [],
+  deaf: false,
   voice: '',
   gestures: false,
   looking: null,
@@ -352,6 +357,7 @@ export const useStore = create<State>((set) => ({
   setActiveTool: (activeTool) => set({ activeTool }),
   setError: (error) => set({ error }),
   setConnected: (connected) => set({ connected }),
+  setDeaf: (deaf) => set({ deaf }),
   pushTurn: (turn) => set((s) => ({ turns: [...s.turns.slice(-40), turn] })),
   appendToLastTurn: (text) =>
     set((s) => {

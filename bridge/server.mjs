@@ -27,7 +27,7 @@ import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
-import { probeUrl, renderPage } from './page.mjs'
+import { renderPage } from './page.mjs'
 import {
   builtinTools,
   checkToolUse,
@@ -1053,8 +1053,9 @@ const handleRequest = async (req, res) => {
       for await (const chunk of upstream.body) res.write(Buffer.from(chunk))
       return res.end()
     } catch (err) {
+      console.error('[jarvis] speech upstream failed:', err?.message ?? err)
       res.writeHead(502, cors)
-      return res.end(String(err?.message ?? err))
+      return res.end('speech service failed')
     }
   }
 
@@ -1137,8 +1138,9 @@ const handleRequest = async (req, res) => {
       res.writeHead(200, { ...cors, 'content-type': 'application/json' })
       return res.end(JSON.stringify({ text: (data.text ?? '').trim() }))
     } catch (err) {
+      console.error('[jarvis] speech upstream failed:', err?.message ?? err)
       res.writeHead(502, cors)
-      return res.end(String(err?.message ?? err))
+      return res.end('speech service failed')
     }
   }
 
@@ -1207,7 +1209,8 @@ if (!LOOPBACK) {
   )
 }
 console.log(
-  `[jarvis] speech ${elevenKey() ? 'via ElevenLabs (key from MCP config)' : 'using browser fallback voice'}`,
+  `[jarvis] speech: hearing ${STT_URL ? 'local Whisper' : CLOUD_STT && elevenKey() ? 'ElevenLabs Scribe' : 'nothing (no local transcriber)'}` +
+    ` · voice ${EDGE_TTS_PYTHON ? `edge-tts ${EDGE_VOICE}` : elevenKey() ? 'ElevenLabs' : 'browser'}`,
 )
 console.log(`[jarvis] model ${MODEL} · effort ${EFFORT}`)
 console.log(
