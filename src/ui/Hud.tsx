@@ -382,7 +382,12 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
 
       {ui.chrome.suggestions && <Suggestions />}
 
-      {error && <div className="error">{error}</div>}
+      {/* role=alert: the status only announces "ERRO"; this reads out why. */}
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <TextBox onSend={onSend} disabled={phase === 'offline' || phase === 'boot'} />
 

@@ -126,6 +126,9 @@ export default function App() {
 
     clearIdle()
     const s = store.getState()
+    // Every turn — spoken, typed or a follow-up — passes here, so a new turn
+    // is where a stale error stops covering the HUD's state.
+    s.setError(null)
     // Last turn's panels and blades go now, before the new answer starts
     // putting its own up. Anything the model marked sticky survives.
     s.clearPanels()
@@ -200,7 +203,7 @@ export default function App() {
       sfx.play('error')
       store
         .getState()
-        .setError(err instanceof Error ? err.message : 'Something went wrong.')
+        .setError(err instanceof Error ? err.message : 'Algo deu errado.')
     } finally {
       if (!stale()) {
         speaker.current = null
@@ -347,8 +350,8 @@ export default function App() {
         .getState()
         .setError(
           err instanceof Error
-            ? `Power-up failed: ${err.message}`
-            : 'Power-up failed. Click to try again.',
+            ? `Falha ao iniciar: ${err.message}`
+            : 'Falha ao iniciar. Clique para tentar de novo.',
         )
     }
   }
@@ -461,18 +464,18 @@ export default function App() {
     // on screen still shows it. Better to say so than to let him quietly forget.
     watchConnection((state) => {
       if (state === 'lost') {
-        store.getState().setError('Bridge connection lost — reconnecting.')
+        store.getState().setError('Conexão com o bridge perdida — reconectando.')
       } else if (state === 'reconnected') {
         store
           .getState()
-          .setError('Bridge reconnected. The previous conversation was not kept.')
+          .setError('Bridge reconectado. A conversa anterior não foi mantida.')
       }
     })
     const warming = warm().catch((err: Error) => s.setError(err.message))
 
     if (!usingBridge && !env.anthropicKey) {
       s.setError(
-        'No Anthropic API key — copy .env.example to .env.local and set VITE_ANTHROPIC_API_KEY.',
+        'Sem chave da Anthropic: copie .env.example para .env.local e defina VITE_ANTHROPIC_API_KEY.',
       )
     }
 
@@ -614,8 +617,8 @@ export default function App() {
                 .getState()
                 .setError(
                   err?.name === 'NotAllowedError'
-                    ? 'Camera access denied — gesture control is unavailable.'
-                    : `Gesture control failed to start: ${err?.message ?? err}`,
+                    ? 'Acesso à câmera negado: o controle por gestos não está disponível.'
+                    : `O controle por gestos não iniciou: ${err?.message ?? err}`,
                 )
             })
         }
@@ -637,7 +640,7 @@ export default function App() {
           console.info('[jarvis] audio test →', d)
           if (d && d.started === 0 && d.rescued === 0) {
             store.getState().setError(
-              `No sound produced. engine=${d.engine} voice=${d.voice} error=${d.lastError || 'none'}`,
+              `Nenhum som foi produzido. engine=${d.engine} voice=${d.voice} error=${d.lastError || 'none'}`,
             )
           }
         })

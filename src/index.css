@@ -91,14 +91,7 @@ body::after {
   letter-spacing: 0.42em;
   text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-
-.brand-sub {
-  display: block;
-  margin-top: 5px;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  opacity: 0.42;
-}
+
 
 .status {
   display: flex;
@@ -195,15 +188,7 @@ body::after {
 }
 .status[data-state='offline'] .status-text { color: #4f9a9a; }
 .status[data-state='error'] .status-text { color: #ff6b6b; }
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent);
-  animation: pulse 1.8s ease-in-out infinite;
-}
+
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
