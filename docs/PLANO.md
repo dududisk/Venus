@@ -27,6 +27,8 @@ Depois: pedidos por WhatsApp e reconhecimento de vídeo.
 | @leonardo | Revisão de código e segurança antes de cada commit |
 | @robertdowney | Escopo, trade-offs e riscos; aprova os portões |
 
+Os agentes são subagentes do Claude Code em `.claude/agents/`, gerados a partir da equipe da Forky (o @leonardo, que veio sem prompt, foi escrito a partir deste plano). Cada um tem a lista de ferramentas explícita no cabeçalho.
+
 ## Etapa 0 — Base rodando e plano no GitHub
 
 **Objetivo:** ter o ponto de partida verificado e este plano versionado.
@@ -41,7 +43,21 @@ Passos:
 
 **Pronto quando:** `git log origin/main` (ou PR mergeado) mostra o plano; a linha de base está registrada neste arquivo.
 
-**Linha de base registrada** (Windows, Node 24.15, npm 11.12, commit `9ae5ec8`, Claude CLI 2.1.319): `npm install` ok (260 pacotes); lint com 2 avisos (`bridge/chrome.mjs:276`, `bridge/server.mjs:29`); test com 21 passando e 1 pulado (22 no total); build ok; `npm audit` com 16 vulnerabilidades (2 críticas, 10 altas, 4 moderadas). Diretas: `dompurify` (crítica), `vite`, `zod` e `kokoro-js` (sem correção). Triagem completa pendente (passo 3).
+**Linha de base registrada** (Windows, Node 24.15, npm 11.12, commit `9ae5ec8`, Claude CLI 2.1.319): `npm install` ok (260 pacotes); lint com 2 avisos (`bridge/chrome.mjs:276`, `bridge/server.mjs:29`); test com 21 passando e 1 pulado (22 no total); build ok; `npm audit` com 16 vulnerabilidades (2 críticas, 10 altas, 4 moderadas). Diretas: `dompurify` (crítica), `vite`, `zod` e `kokoro-js` (sem correção).
+
+**Triagem do audit (passo 3, aplicada; falta a revisão do @robertdowney):** `npm audit fix` sem `--force` mudou só o `package-lock.json` e levou de 16 para 3 vulnerabilidades, com 0 críticas. O @leonardo revisou o lockfile em 15/11/2026: nenhuma versão maior, todo `resolved` no registry.npmjs.org e nenhum script de instalação novo.
+
+| Pacote | Origem | Uso | Resultado |
+|---|---|---|---|
+| `dompurify` (crítica) | direta | runtime, sanitiza os painéis do HUD | 3.4.18 |
+| `zod` (alta) | direta | runtime | 4.6.7 |
+| `vite` (alta, launch-editor no Windows), `nanoid`, `source-map-js` | direta e via vite/postcss | dev | vite 8.3.8 |
+| `@modelcontextprotocol/sdk`, `hono`, `@hono/node-server`, `proxy-addr` (crítica), `body-parser`, `qs`, `ip-address`, `fast-uri` | via `@anthropic-ai/claude-agent-sdk` | runtime do bridge | corrigidos no lockfile |
+| `kokoro-js` → `@huggingface/transformers` → `sharp` (3 altas) | direta | TTS opcional (`VITE_TTS_ENGINE=kokoro`) | sem correção; risco aceito: o `sharp` é Node e não vai para o navegador. Reavaliar se o kokoro passar a ser usado |
+
+Depois da correção: lint com os mesmos 2 avisos; test com 21 passando e 1 pulado; build ok.
+
+**Upstream (passo 4, concluído):** remoto `upstream` = `adewaskar/jarvis`, só para consulta; em 15/11/2026 não tinha commits à frente do `main`.
 
 ## Etapa 1 — Identidade e entrada (Venus, pt-BR, texto)
 
