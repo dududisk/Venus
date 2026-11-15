@@ -246,6 +246,10 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 | `JARVIS_CHROME_PIPE` | none | WSL only: the Windows pipe name the browser relay connects to |
 | `JARVIS_DEBUG` | off | `1` logs every agent message to the bridge terminal, answer text and tool calls included |
 | `JARVIS_VOICE_ID` | none | ElevenLabs voice id |
+| `JARVIS_STT_URL` | set by `npm start` | Local transcriber (whisper.cpp `whisper-server` `/inference`); takes precedence over ElevenLabs |
+| `JARVIS_WHISPER_SERVER`, `JARVIS_WHISPER_MODEL`, `JARVIS_WHISPER_PORT` | `~/.jarvis/whisper/…`, `8178` | Where `npm start` finds and runs `whisper-server` |
+| `JARVIS_EDGE_TTS_PYTHON` | `~/.jarvis/tts-venv` python | Python with `edge-tts` installed; enables the Microsoft neural voice |
+| `JARVIS_TTS_VOICE` | `pt-BR-FranciscaNeural` | edge-tts voice |
 | `ELEVENLABS_API_KEY` | none | Optional; enables the ElevenLabs voice + Scribe |
 
 ### Frontend (`.env.local`)
@@ -254,8 +258,6 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 |---|---|
 | `VITE_BACKEND` | `bridge` (default) or `direct` |
 | `VITE_BRIDGE_URL` | Where to reach the bridge |
-| `VITE_TTS_ENGINE` | `system` or `kokoro` |
-| `VITE_KOKORO_VOICE` | Voice for the Kokoro engine |
 | `VITE_USE_ELEVENLABS` | Force the ElevenLabs voice on |
 | `VITE_ANTHROPIC_API_KEY` | Direct mode only |
 

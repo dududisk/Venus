@@ -1,8 +1,45 @@
-import { BRIDGE_HTTP_URL } from '../config'
+import { ALLOW_CLOUD_STT, BRIDGE_HTTP_URL } from '../config'
 import { getMic } from './audio'
 import { speakingNow, speakingSince } from './tts'
 import { startVad, type Vad } from './vad'
 import { caps } from './capabilities'
+import { CONTINUES, OVERRIDE, STOP, WAKE, afterWake, norm } from './ptbr'
+
+/**
+ * A captured segment as 16 kHz mono 16-bit WAV.
+ *
+ * MediaRecorder only produces compressed audio (webm/opus here), and the local
+ * transcriber, whisper.cpp's server, only reads WAV — with no ffmpeg on the
+ * machine to bridge the two. The browser can decode its own recording, and
+ * resampling to the 16 kHz Whisper wants also shrinks the upload.
+ */
+export async function toWav16k(blob: Blob): Promise<Blob> {
+  const RATE = 16000
+  // decodeAudioData resamples to its context's rate, so a throwaway offline
+  // context at 16 kHz does decoding and resampling in one step. The mic is mono.
+  const decoded = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(await blob.arrayBuffer())
+  const pcm = decoded.getChannelData(0)
+
+  const out = new DataView(new ArrayBuffer(44 + pcm.length * 2))
+  const ascii = (at: number, s: string) => [...s].forEach((c, i) => out.setUint8(at + i, c.charCodeAt(0)))
+  ascii(0, 'RIFF')
+  out.setUint32(4, 36 + pcm.length * 2, true)
+  ascii(8, 'WAVEfmt ')
+  out.setUint32(16, 16, true) // fmt chunk size
+  out.setUint16(20, 1, true) // PCM
+  out.setUint16(22, 1, true) // mono
+  out.setUint32(24, RATE, true)
+  out.setUint32(28, RATE * 2, true) // byte rate
+  out.setUint16(32, 2, true) // block align
+  out.setUint16(34, 16, true) // bits per sample
+  ascii(36, 'data')
+  out.setUint32(40, pcm.length * 2, true)
+  for (let i = 0; i < pcm.length; i++) {
+    const s = Math.max(-1, Math.min(1, pcm[i]))
+    out.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+  }
+  return new Blob([out.buffer], { type: 'audio/wav' })
+}
 
 /**
  * The voice loop.
@@ -64,31 +101,7 @@ export type Voice = {
 /** One utterance often produces several partials containing his name. */
 const WAKE_DEBOUNCE = 1500
 
-/**
- * His name, and the only wake phrase.
- *
- * The optional prefix is genuinely optional: addressing him by name alone is
- * correct, and during an answer "Jarvis" on its own is the natural way to cut
- * in. The negative lookahead keeps possessives ("Jarvis's job") from waking him.
- *
- * The alternates are not padding. "Jarvis" is not in a general dictation
- * model's high-frequency vocabulary, and Chrome routinely returns Travis,
- * Jervis, Jarvys or Java's for a perfectly clear utterance — every one of which
- * used to be silently discarded, so the wake word "just didn't work" with no
- * indication why. Better a rare false wake than a name that does not answer.
- */
-const WAKE =
-  /\b(?:hey|hi|ok|okay|yo)?\s*(?:jarvis|jarvys|jervis|jarvis's|travis|jarviss|java's|jarv)\b(?!'s)/i
-
-/** Everything after the wake phrase, which is usually the actual command. */
-function afterWake(text: string): string {
-  const m = WAKE.exec(text)
-  if (!m) return ''
-  return text
-    .slice(m.index + m[0].length)
-    .replace(/^[\s,.:;!?-]+/, '')
-    .trim()
-}
+// The wake phrase ("Venus") and the other pt-BR word lists live in ptbr.ts.
 
 // ---------------------------------------------------------------------------
 // Assembling one utterance out of several segments
@@ -115,15 +128,6 @@ function afterWake(text: string): string {
  * ordinary question is exactly what it was. The waiting only happens when there
  * is a reason to wait.
  */
-
-/**
- * Ending on one of these means the sentence is not over, whatever the silence
- * says. Function words only: they are closed-class, so the list is complete in
- * a way a content-word list could never be, and none of them is a plausible
- * last word of a real request.
- */
-const CONTINUES =
-  /\b(and|or|but|so|because|since|if|when|while|that|which|who|whose|to|of|in|on|at|by|for|with|from|about|into|onto|over|under|between|through|the|a|an|my|your|his|her|its|our|their|is|are|was|were|be|been|do|does|did|have|has|had|can|could|would|should|will|shall|might|must|like|than|then|as|very|really|just|some|any|all|both|either|neither)$/i
 
 /** Trailing punctuation a transcriber emits mid-thought. */
 const TRAILS = /[,;:–—-]$/
@@ -254,38 +258,9 @@ function makeAssembler(h: {
 // Hearing himself
 // ---------------------------------------------------------------------------
 
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9' ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-/**
- * Short words that must always cut through, even when they collide with what
- * he happens to be saying. Suppressing "stop" because he just said "stop"
- * would be the single most infuriating failure this file could have.
- */
-const OVERRIDE =
-  /\b(stop|wait|jarvis|cancel|enough|quiet|hold on|shut up|never ?mind|forget it|no)\b/i
-
-/**
- * Words too common to be evidence of anything.
- *
- * This set is the difference between a usable filter and an infuriating one.
- * "What about the second one?" is a perfectly ordinary follow-up, and every
- * word in it is likely to appear somewhere in the answer it follows — so a
- * naive bag-of-words match suppresses the user's real question as an echo.
- * Only distinctive words count as proof he is hearing himself.
- */
-const STOP = new Set(
-  ('a an the and or but so of to in on at by for with from is are was were be ' +
-    'it its this that these those i you he she we they me him her them my your ' +
-    'our their what which who how why when where do does did can could would ' +
-    'should will shall not no yes if then than as about into over under out up ' +
-    'down one two three first second third now here there just very really got ' +
-    'get have has had say said tell me okay ok well right').split(' '),
-)
+// norm, OVERRIDE (words that always cut through) and STOP (words too common to
+// prove an echo) are in ptbr.ts. STOP is the difference between a usable echo
+// filter and one that swallows ordinary follow-ups.
 
 /**
  * Is this the microphone hearing the speakers?
@@ -398,6 +373,15 @@ export async function startVoice(h: VoiceHandlers): Promise<Voice> {
     )
     return { stop: () => {}, live: () => false }
   }
+  if (!caps().stt && !ALLOW_CLOUD_STT) {
+    // No local transcriber reachable. Falling back to the browser recogniser
+    // would send the microphone to Google, which the owner declined — so say
+    // so and stay deaf instead.
+    diag.engine = 'none'
+    diag.lastError = 'no local stt'
+    h.onError('Sem transcrição local: inicie com npm start (Whisper em ~/.jarvis) e recarregue.')
+    return { stop: () => {}, live: () => false }
+  }
   diag.engine = caps().stt ? 'elevenlabs' : 'browser'
   return caps().stt ? startElevenVoice(h) : startBrowserVoice(h)
 }
@@ -450,10 +434,11 @@ async function startElevenVoice(h: VoiceHandlers): Promise<Voice> {
     if (mode === 'deaf') return
     const t0 = performance.now()
     try {
+      const wav = await toWav16k(blob)
       const res = await fetch(`${BRIDGE_HTTP_URL}/stt`, {
         method: 'POST',
-        headers: { 'content-type': blob.type || 'audio/webm' },
-        body: blob,
+        headers: { 'content-type': 'audio/wav' },
+        body: wav,
       })
       diag.idleMs = Math.round(performance.now() - t0)
       if (!res.ok) {
@@ -760,7 +745,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
     rec = new Ctor()
     rec.continuous = true
     rec.interimResults = true
-    rec.lang = 'en-GB'
+    rec.lang = 'pt-BR'
     rec.onstart = () => {
       running = true
       diag.running = true

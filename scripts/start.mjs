@@ -13,6 +13,9 @@
 import { spawn } from 'node:child_process'
 import process from 'node:process'
 import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * Put MediaPipe's WebAssembly where the page can actually load it.
@@ -113,7 +116,43 @@ if (port) {
 
 vendorWasm()
 
-console.log('\nJ.A.R.V.I.S. starting — the brain and the face.\n')
+/**
+ * Local speech for Venus, found in ~/.jarvis unless the paths are given.
+ * whisper-server (whisper.cpp) transcribes on loopback, so the microphone never
+ * leaves the machine; edge-tts speaks with a Microsoft neural voice.
+ */
+const jarvisHome = join(homedir(), '.jarvis')
+const whisperExe =
+  process.env.JARVIS_WHISPER_SERVER ?? join(jarvisHome, 'whisper', 'bin', 'Release', 'whisper-server.exe')
+const whisperModel =
+  process.env.JARVIS_WHISPER_MODEL ?? join(jarvisHome, 'whisper', 'models', 'ggml-large-v3-turbo-q5_0.bin')
+const whisperPort = process.env.JARVIS_WHISPER_PORT ?? '8178'
+if (process.env.JARVIS_STT_URL) {
+  // Given explicitly; the caller runs the transcriber.
+} else if (existsSync(whisperExe) && existsSync(whisperModel)) {
+  // whisper-server has no authentication and answers any page in the browser
+  // (a simple multipart POST needs no CORS preflight), so every route sits
+  // under a random prefix only the bridge knows.
+  const secret = `/${randomBytes(16).toString('hex')}`
+  run(
+    'ouvido',
+    whisperExe,
+    ['-m', whisperModel, '--host', '127.0.0.1', '--port', whisperPort, '-l', 'pt', '--request-path', secret],
+    '33',
+    {},
+  )
+  bridgeEnv.JARVIS_STT_URL = `http://127.0.0.1:${whisperPort}${secret}/inference`
+} else {
+  console.warn(
+    `  local transcriber not found (${whisperExe}).\n` +
+      '  Venus will not listen: the microphone is never sent to the cloud by default.\n',
+  )
+}
+const edgePython =
+  process.env.JARVIS_EDGE_TTS_PYTHON ?? join(jarvisHome, 'tts-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
+if (existsSync(edgePython)) bridgeEnv.JARVIS_EDGE_TTS_PYTHON = edgePython
+
+console.log('\nVenus starting — the brain and the face.\n')
 run('bridge', 'node', ['bridge/server.mjs'], '36', bridgeEnv)
 // npm is a shell script on most systems; call the vite binary directly so we do
 // not need shell:true (which would break the argument handling above).
@@ -121,5 +160,5 @@ run('face', process.execPath, ['node_modules/vite/bin/vite.js'], '35', {})
 
 console.log(
   '\nWhen it says the dev server is ready, open the URL it prints in Chrome,\n' +
-    'click INITIALISE, and say "Hey Jarvis". Ctrl-C stops everything.\n',
+    'click INITIALISE, and say "Venus". Ctrl-C stops everything.\n',
 )

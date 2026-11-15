@@ -21,6 +21,7 @@ import { displayServer } from './panels.mjs'
 import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
+import { spawn } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
@@ -481,7 +482,23 @@ const PROMPT_TOOLS = `Using tools:
 - If a tool fails or isn't connected, one plain sentence saying so.
 - If you don't know, say you don't know.`
 
+/**
+ * Venus speaks Brazilian Portuguese. The persona below is still written in
+ * English (rewriting it is the owner's call); this section sits first and
+ * overrides its language-specific parts.
+ */
+const PROMPT_LANG = `LANGUAGE AND NAME — overrides everything below.
+Your name is Venus. You always speak and write in Brazilian Portuguese (pt-BR),
+whatever language a page, tool result or the rules below are written in.
+Where the rules below mention "sir", do not use any form of address at all — no
+"senhor", no "senhora", no name. Carry the same register in natural pt-BR
+("Receio que…" for bad news, "Pois não?" when called). Numbers, dates and times
+as spoken in pt-BR: "oito e quinze", "primeiro de agosto".
+
+`
+
 const SYSTEM_PROMPT = [
+  PROMPT_LANG,
   PROMPT_CORE,
   PROMPT_BLADES,
   DISABLED.has('interface') ? '' : PROMPT_INTERFACE,
@@ -510,6 +527,99 @@ function elevenKey() {
 }
 
 const VOICE_ID = process.env.JARVIS_VOICE_ID ?? 'JBFqnCBsd6RMkjVDRZzb'
+
+/**
+ * Local speech, which takes precedence over ElevenLabs when configured.
+ *
+ * STT: whisper.cpp's `whisper-server` on loopback (scripts/start.mjs launches
+ * it). The microphone audio never leaves the machine — the owner's condition for
+ * an always-listening wake word.
+ *
+ * TTS: Microsoft's neural voices through the `edge-tts` package, run from its own
+ * virtualenv. Free, and only the text being spoken leaves the machine.
+ */
+const STT_URL = process.env.JARVIS_STT_URL ?? ''
+// ElevenLabs Scribe would send the microphone off the machine; opt-in only.
+const CLOUD_STT = process.env.JARVIS_ALLOW_CLOUD_STT === '1'
+const EDGE_TTS_PYTHON = process.env.JARVIS_EDGE_TTS_PYTHON ?? ''
+const EDGE_VOICE = process.env.JARVIS_TTS_VOICE ?? 'pt-BR-FranciscaNeural'
+// Text arrives on stdin as UTF-8 bytes (the Windows console code page would
+// mangle accents) and MP3 leaves on stdout as it is generated.
+const EDGE_TTS_SCRIPT = `
+import sys, asyncio, edge_tts
+async def main():
+    text = sys.stdin.buffer.read().decode('utf-8')
+    async for chunk in edge_tts.Communicate(text, sys.argv[1]).stream():
+        if chunk['type'] == 'audio':
+            sys.stdout.buffer.write(chunk['data'])
+            sys.stdout.buffer.flush()
+asyncio.run(main())
+`
+
+/**
+ * Short lines are cached. The fillers ("Pois não?", "Verificando.") repeat all
+ * day, and each edge-tts call costs ~2 s (Python start-up plus the round trip);
+ * from the second time on they play at once.
+ * ponytail: per-call Python process; a persistent worker would cut ~0.9 s more.
+ */
+const ttsCache = new Map()
+const TTS_CACHE_TEXT = 60
+const TTS_CACHE_MAX = 200
+
+/** Speak `text` with edge-tts, piping MP3 straight into `res`. */
+function edgeSpeak(text, res, cors) {
+  const hit = ttsCache.get(text)
+  if (hit) {
+    res.writeHead(200, { ...cors, 'content-type': 'audio/mpeg', 'cache-control': 'no-cache' })
+    return Promise.resolve(res.end(hit))
+  }
+  const keep = text.length <= TTS_CACHE_TEXT ? [] : null
+  return new Promise((done) => {
+    const child = spawn(EDGE_TTS_PYTHON, ['-I', '-c', EDGE_TTS_SCRIPT, EDGE_VOICE], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+    let started = false
+    let err = ''
+    child.stdout.on('data', (chunk) => {
+      if (!started) {
+        started = true
+        res.writeHead(200, { ...cors, 'content-type': 'audio/mpeg', 'cache-control': 'no-cache' })
+      }
+      res.write(chunk)
+      keep?.push(chunk)
+    })
+    // Bounded: only the tail is ever logged, and none of it goes to the page.
+    child.stderr.on('data', (d) => (err = (err + d).slice(-4096)))
+    // A hung network call must not hold the sentence (or the process) forever,
+    // and a listener that hung up has no use for the rest of the audio.
+    const timer = setTimeout(() => child.kill(), 30_000)
+    res.on('close', () => child.kill())
+    let finished = false
+    const finish = (code) => {
+      // A failed spawn reports both 'error' and 'close'; answer once.
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      if (keep && started && code === 0) {
+        if (ttsCache.size >= TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value)
+        ttsCache.set(text, Buffer.concat(keep))
+      }
+      if (code !== 0) console.error(`[jarvis] edge-tts failed (${code}): ${err.trim().split('\n').pop()}`)
+      if (!started && !res.headersSent) {
+        res.writeHead(502, cors)
+        res.end('tts failed')
+      } else res.end()
+      done()
+    }
+    child.on('error', (e) => ((err = String(e?.message ?? e)), finish()))
+    child.on('close', finish)
+    // If Python dies before reading (broken venv), writing raises EPIPE; with
+    // no listener that would take the whole bridge down. `finish` reports it.
+    child.stdin.on('error', () => {})
+    child.stdin.end(Buffer.from(text, 'utf8'))
+  })
+}
 
 /**
  * Where /file is permitted to read from, and how big a read may get.
@@ -740,9 +850,14 @@ const handleRequest = async (req, res) => {
     // with a key the app transcribes with Scribe and speaks with ElevenLabs;
     // without one it falls back to the browser's own recogniser and voice, so a
     // student with nothing configured still has a working assistant.
+    // Local engines count too, and the label tells the HUD which ones it got.
     const eleven = Boolean(elevenKey())
+    const stt = STT_URL ? 'Whisper local' : eleven && CLOUD_STT ? 'ElevenLabs' : ''
+    const tts = EDGE_TTS_PYTHON ? EDGE_VOICE.replace(/^\w+-\w+-|Neural$/g, '') : eleven ? 'ElevenLabs' : ''
     res.writeHead(200, { ...cors, 'content-type': 'application/json' })
-    return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven }))
+    return res.end(
+      JSON.stringify({ ok: true, tts: Boolean(tts), stt: Boolean(stt), label: [stt, tts].filter(Boolean).join(' + ') }),
+    )
   }
 
   // Serve local image files to the page. Screenshots and generated art land on
@@ -866,7 +981,7 @@ const handleRequest = async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/tts') {
     const key = elevenKey()
-    if (!key) {
+    if (!key && !EDGE_TTS_PYTHON) {
       res.writeHead(503, cors)
       return res.end('no elevenlabs key')
     }
@@ -895,10 +1010,11 @@ const handleRequest = async (req, res) => {
       res.writeHead(400, cors)
       return res.end('bad json')
     }
-    if (!text) {
+    if (typeof text !== 'string' || !text.trim()) {
       res.writeHead(400, cors)
       return res.end('no text')
     }
+    if (EDGE_TTS_PYTHON) return edgeSpeak(text, res, cors)
     try {
       const upstream = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream` +
@@ -950,8 +1066,8 @@ const handleRequest = async (req, res) => {
   // speaking at all is done locally with voice-activity detection, which never
   // touches this endpoint; this is only for the words.
   if (req.method === 'POST' && req.url === '/stt') {
-    const key = elevenKey()
-    if (!key) {
+    const key = CLOUD_STT ? elevenKey() : null
+    if (!key && !STT_URL) {
       res.writeHead(503, cors)
       return res.end('no elevenlabs key')
     }
@@ -994,18 +1110,25 @@ const handleRequest = async (req, res) => {
             ? 'wav'
             : 'webm'
       const form = new FormData()
-      form.append('model_id', 'scribe_v1')
       form.append(
         'file',
         new Blob([Buffer.concat(chunks)], { type }),
         `speech.${ext}`,
       )
 
-      const upstream = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
-        method: 'POST',
-        headers: { 'xi-api-key': key },
-        body: form,
-      })
+      let upstream
+      if (STT_URL) {
+        // whisper-server: WAV in (the browser converts), JSON { text } out.
+        form.append('response_format', 'json')
+        upstream = await fetch(STT_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) })
+      } else {
+        form.append('model_id', 'scribe_v1')
+        upstream = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+          method: 'POST',
+          headers: { 'xi-api-key': key },
+          body: form,
+        })
+      }
       if (!upstream.ok) {
         res.writeHead(upstream.status, cors)
         return res.end(await upstream.text())
