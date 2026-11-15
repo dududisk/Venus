@@ -568,8 +568,10 @@ export default function App() {
     pump()
 
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const el = e.target as HTMLElement
+      const tag = el?.tagName
+      // A focused button needs its own Space/Enter; typing needs every key.
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || el?.isContentEditable) return
 
       // V auditions the next British voice installed on this machine. Which
       // ones exist varies per Mac, so hearing them beats trusting a ranking.

@@ -159,7 +159,7 @@ function TextBox({ onSend, disabled }: { onSend: (text: string) => void; disable
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
-      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'TEXTAREA') {
         e.preventDefault()
         input.current?.focus()
       }
