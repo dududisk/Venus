@@ -1053,8 +1053,9 @@ const handleRequest = async (req, res) => {
       for await (const chunk of upstream.body) res.write(Buffer.from(chunk))
       return res.end()
     } catch (err) {
+      console.error('[jarvis] speech upstream failed:', err?.message ?? err)
       res.writeHead(502, cors)
-      return res.end(String(err?.message ?? err))
+      return res.end('speech service failed')
     }
   }
 
@@ -1137,8 +1138,9 @@ const handleRequest = async (req, res) => {
       res.writeHead(200, { ...cors, 'content-type': 'application/json' })
       return res.end(JSON.stringify({ text: (data.text ?? '').trim() }))
     } catch (err) {
+      console.error('[jarvis] speech upstream failed:', err?.message ?? err)
       res.writeHead(502, cors)
-      return res.end(String(err?.message ?? err))
+      return res.end('speech service failed')
     }
   }
 

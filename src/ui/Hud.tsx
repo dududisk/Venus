@@ -25,7 +25,7 @@ const statusText: Record<HudState, string> = {
   tooling: 'USANDO FERRAMENTAS',
   speaking: 'FALANDO',
   error: 'ERRO',
-  deaf: 'SEM MICROFONE — USE A CAIXA DE TEXTO',
+  deaf: 'VOZ INDISPONÍVEL — USE A CAIXA DE TEXTO',
 }
 
 /** The bridge's own MCP servers are named after the old project; show what

@@ -324,6 +324,9 @@ export default function App() {
 
   const onVoiceError = (message: string) => {
     store.getState().setError(message)
+    // A microphone refused or unplugged mid-session kills the loop too; keep
+    // the HUD from going back to "say Venus" after the next typed turn.
+    if (voice.current && !voice.current.live()) store.getState().setDeaf(true)
   }
 
   // -- power on -------------------------------------------------------------

@@ -106,7 +106,7 @@ export async function startVad(h: VadHandlers): Promise<Vad> {
   } catch (err) {
     h.onError(
       err instanceof DOMException && err.name === 'NotAllowedError'
-        ? 'Acesso ao microfone negado: libere o microfone para este site no Chrome.'
+        ? 'Acesso ao microfone negado: libere o microfone para este site no Chrome e recarregue a página.'
         : 'Nenhum microfone disponível.',
     )
     return { stop: () => {}, setGuard: () => {}, live: () => false, meter: () => ({ energy: 0, floor: 0, threshold: 0, speaking: false }) }

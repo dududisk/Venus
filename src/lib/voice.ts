@@ -368,7 +368,7 @@ export async function startVoice(h: VoiceHandlers): Promise<Voice> {
     diag.lastError = 'mic'
     h.onError(
       err instanceof DOMException && err.name === 'NotAllowedError'
-        ? 'Acesso ao microfone negado: libere o microfone para este site no Chrome.'
+        ? 'Acesso ao microfone negado: libere o microfone para este site no Chrome e recarregue a página.'
         : 'Nenhum microfone disponível.',
     )
     return { stop: () => {}, live: () => false }
@@ -758,7 +758,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
         stopped = true
         diag.running = false
-        h.onError('Acesso ao microfone negado: libere o microfone para este site no Chrome.')
+        h.onError('Acesso ao microfone negado: libere o microfone para este site no Chrome e recarregue a página.')
       }
     }
     rec.onend = () => {
@@ -811,6 +811,8 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
         /* noop */
       }
     },
-    live: () => running,
+    // Not `running`: that only turns true in the async onstart, so read right
+    // after start it would report a working recogniser as dead.
+    live: () => !stopped,
   }
 }

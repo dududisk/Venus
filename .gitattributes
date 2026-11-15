@@ -1,0 +1,3 @@
+# Store text with LF whatever the editor or core.autocrlf does on Windows;
+# a CRLF rewrite once showed up as a 4000-line diff of src/index.css.
+* text=auto eol=lf

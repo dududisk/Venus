@@ -119,7 +119,9 @@ test('/stt edges: short audio never reaches the transcriber; its failures are pa
 
     fake.close()
     fake.closeAllConnections()
-    assert.equal((await stt(Buffer.alloc(4000))).status, 502, 'transcriber down → 502')
+    const down = await stt(Buffer.alloc(4000))
+    assert.equal(down.status, 502, 'transcriber down → 502')
+    assert.equal(await down.text(), 'speech service failed', 'no error details reach the page')
   } finally {
     child.kill()
     fake.close()

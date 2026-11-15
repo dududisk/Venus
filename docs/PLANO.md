@@ -104,7 +104,7 @@ Passos:
   - As recusas funcionaram: corpo inválido, Origin e Host estranhos, e o whisper-server sem o segredo.
   - No navegador, a caixa de texto respondeu em pt-BR e os estados seguiram PENSANDO → FALANDO → OUVINDO.
 - **Achados corrigidos:**
-  - Com o microfone negado, o HUD voltava a pedir "diga Venus". Agora mostra SEM MICROFONE.
+  - Com o microfone negado, o HUD voltava a pedir "diga Venus". Agora mostra VOZ INDISPONÍVEL, e também quando o microfone cai no meio da sessão.
   - `lang` do HTML trocado para `pt-BR`.
   - Textos que ainda estavam em inglês traduzidos.
   - Nomes internos no painel SISTEMAS trocados por nomes legíveis.
