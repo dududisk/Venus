@@ -63,7 +63,7 @@ export function GestureGuide({ live }: { live: boolean }) {
           exit={{ opacity: 0, y: 8, filter: 'blur(6px)', transition: { duration: 0.5 } }}
           transition={{ type: 'spring', stiffness: 260, damping: 28 }}
         >
-          <div className="gguide-head">HAND CONTROL</div>
+          <div className="gguide-head">CONTROLE POR GESTOS</div>
           {MOVES.map((m) => (
             <div key={m.gesture} className="gguide-row">
               <span className="gguide-icon">{m.hand}</span>

@@ -368,8 +368,8 @@ export async function startVoice(h: VoiceHandlers): Promise<Voice> {
     diag.lastError = 'mic'
     h.onError(
       err instanceof DOMException && err.name === 'NotAllowedError'
-        ? 'Microphone access denied — voice input is unavailable.'
-        : 'No microphone available.',
+        ? 'Acesso ao microfone negado: libere o microfone para este site no Chrome.'
+        : 'Nenhum microfone disponível.',
     )
     return { stop: () => {}, live: () => false }
   }

@@ -7,15 +7,35 @@ import { Effects } from './Effects'
 import { Pointer } from './Pointer'
 import { GestureGuide } from './GestureGuide'
 
-const statusText: Record<Phase, string> = {
-  offline: 'OFFLINE',
-  boot: 'INITIALISING',
-  dormant: 'STANDBY — SAY “HEY JARVIS”',
-  waking: 'ONLINE',
-  listening: 'LISTENING',
-  thinking: 'PROCESSING',
-  tooling: 'ACCESSING SYSTEMS',
-  speaking: 'RESPONDING',
+/**
+ * What she is doing, said in words *and* drawn as a distinct shape (see
+ * .state-icon in index.css), so no state is told apart by colour alone.
+ * 'error' is not a phase: it overlays whatever phase is current while an error
+ * message is up.
+ */
+type HudState = Phase | 'error'
+
+const statusText: Record<HudState, string> = {
+  offline: 'DESLIGADA',
+  boot: 'INICIANDO',
+  dormant: 'EM ESPERA — DIGA “VENUS”',
+  waking: 'PRONTA',
+  listening: 'OUVINDO',
+  thinking: 'PENSANDO',
+  tooling: 'USANDO FERRAMENTAS',
+  speaking: 'FALANDO',
+  error: 'ERRO',
+}
+
+/** The shape beside the status: dot, ring, spinner, bars or warning mark. */
+function StateIcon({ state }: { state: HudState }) {
+  return (
+    <span className="state-icon" data-state={state} aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  )
 }
 
 function Corner({ at }: { at: 'tl' | 'tr' | 'bl' | 'br' }) {
@@ -219,6 +239,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
   // variable on the root carries a theme change into every .hud-* rule without
   // a single component knowing a theme exists.
   const colour = accentFor(phase, ui)
+  const state: HudState = error ? 'error' : phase
 
   useEffect(() => {
     // The ground has to be set on the document, not painted here: the HUD sits
@@ -245,19 +266,17 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
       <header className="hud-top">
         {ui.chrome.brand && (
           <div className="brand">
-            <span className="brand-mark">J.A.R.V.I.S.</span>
-            <span className="brand-sub">Just A Rather Very Intelligent System</span>
+            <span className="brand-mark">VENUS</span>
           </div>
         )}
 
-        <div className="status">
-          <span className="dot" />
+        {/* role=status: a screen reader announces each change of state. */}
+        <div className="status" data-state={state} role="status" aria-live="polite">
+          <StateIcon state={state} />
           <span className="status-text">
-            {/* bootNote is the voice-model download readout. It is only ever
-                the right thing to show during boot — as a general fallback a
-                note that never got cleared (a stuck 'voice 97%') sits over
-                LISTENING and PROCESSING for the rest of the session. */}
-            {phase === 'boot' && bootNote ? bootNote : statusText[phase]}
+            {/* bootNote is a boot-time readout; only shown during boot so a
+                note that never got cleared cannot sit over later states. */}
+            {phase === 'boot' && bootNote ? bootNote : statusText[state]}
           </span>
         </div>
       </header>
@@ -265,8 +284,8 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
       {/* Left rail: which integrations are live */}
       {ui.chrome.systems && (
         <aside className="rail rail-left">
-          <div className="rail-title">SYSTEMS</div>
-          {connected.length === 0 && <div className="rail-item dim">none linked</div>}
+          <div className="rail-title">SISTEMAS</div>
+          {connected.length === 0 && <div className="rail-item dim">nenhum conectado</div>}
           {connected.map((c) => (
             <div key={c} className="rail-item">
               <span className="tick" />
@@ -282,7 +301,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
 
       {/* Right rail: live telemetry, mostly for flavour */}
       <aside className="rail rail-right">
-        <div className="rail-title">SIGNAL</div>
+        <div className="rail-title">SINAL</div>
         <div className="meter">
           <div className="meter-fill" style={{ transform: `scaleY(${level})` }} />
         </div>
@@ -308,7 +327,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
           >
             <span className="tool-kicker">
               <span className="spinner" />
-              accessing
+              acessando
             </span>
             <span className="tool-name">{activeTool.replace(/[_-]/g, ' ')}</span>
           </motion.div>
@@ -328,7 +347,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
                 exit={{ opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 320, damping: 32 }}
               >
-                <span className="log-who">{t.role === 'user' ? 'YOU' : 'JARVIS'}</span>
+                <span className="log-who">{t.role === 'user' ? 'VOCÊ' : 'VENUS'}</span>
                 {/* Only his half decodes. What the user said was never
                     transmitted from anywhere — dressing it up as machine
                     output would be a lie about where the words came from. */}
@@ -363,7 +382,12 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
 
       {ui.chrome.suggestions && <Suggestions />}
 
-      {error && <div className="error">{error}</div>}
+      {/* role=alert: the status only announces "ERRO"; this reads out why. */}
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <TextBox onSend={onSend} disabled={phase === 'offline' || phase === 'boot'} />
 
@@ -373,7 +397,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
           {voice && (
             <>
               {' · '}
-              <kbd>V</kbd> voice: {voice.replace(/\(.*?\)/g, '').trim()}
+              <kbd>V</kbd> voz: {voice.replace(/\(.*?\)/g, '').trim()}
             </>
           )}
         </span>
@@ -389,7 +413,7 @@ export function Hud({ onSend }: { onSend: (text: string) => void }) {
       <Pointer />
       {(gestures || looking) && (
         <div className="hands-live">
-          {looking ? `LOOKING — ${looking.toUpperCase()}` : 'CAMERA ON · G TO STOP'}
+          {looking ? `OLHANDO — ${looking.toUpperCase()}` : 'CÂMERA LIGADA · G PARA DESLIGAR'}
         </div>
       )}
       <GestureGuide live={gestures} />

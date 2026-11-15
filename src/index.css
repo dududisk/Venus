@@ -91,14 +91,7 @@ body::after {
   letter-spacing: 0.42em;
   text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-
-.brand-sub {
-  display: block;
-  margin-top: 5px;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  opacity: 0.42;
-}
+
 
 .status {
   display: flex;
@@ -112,14 +105,90 @@ body::after {
   margin-left: auto;
 }
 
-.dot {
-  width: 7px;
-  height: 7px;
+/* ---- HUD state: a word plus a shape, never colour alone ------------------
+   dot (standby/boot) · hollow dot (off) · ripple ring (ready/listening) ·
+   round spinner (thinking) · square spinner (tools) · bars (speaking) ·
+   warning triangle (error). Contrast of each state's text is ≥ 4.5:1 on the
+   ground; the two that were not (off, error) get their own text colour. */
+.state-icon {
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+.state-icon i {
+  position: absolute;
+  display: none;
+}
+.state-icon i:first-child {
+  display: block;
+  inset: 3px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 12px var(--accent);
+  box-shadow: 0 0 10px var(--accent);
   animation: pulse 1.8s ease-in-out infinite;
 }
+.state-icon[data-state='offline'] i:first-child {
+  background: transparent;
+  border: 1px solid #4f9a9a;
+  box-shadow: none;
+  animation: none;
+}
+.state-icon[data-state='waking'] i:nth-child(2),
+.state-icon[data-state='listening'] i:nth-child(2) {
+  display: block;
+  inset: 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  animation: stateRipple 1.4s ease-out infinite;
+}
+.state-icon[data-state='thinking'] i:first-child,
+.state-icon[data-state='tooling'] i:first-child {
+  inset: 0;
+  background: none;
+  box-shadow: none;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+.state-icon[data-state='tooling'] i:first-child { border-radius: 2px; }
+.state-icon[data-state='speaking'] i {
+  display: block;
+  inset: auto;
+  bottom: 1px;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: none;
+  transform-origin: bottom;
+  animation: stateBar 0.8s ease-in-out infinite;
+}
+.state-icon[data-state='speaking'] i:nth-child(1) { left: 1px; }
+.state-icon[data-state='speaking'] i:nth-child(2) { left: 5px; animation-delay: -0.3s; }
+.state-icon[data-state='speaking'] i:nth-child(3) { left: 9px; animation-delay: -0.55s; }
+.state-icon[data-state='error'] i:first-child {
+  inset: 0;
+  border-radius: 0;
+  background: #ff6b6b;
+  box-shadow: none;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  animation: none;
+}
+@keyframes stateRipple {
+  from { transform: scale(0.4); opacity: 1; }
+  to { transform: scale(1.3); opacity: 0; }
+}
+@keyframes stateBar {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .state-icon i { animation: none !important; }
+}
+.status[data-state='offline'] .status-text { color: #4f9a9a; }
+.status[data-state='error'] .status-text { color: #ff6b6b; }
+
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -142,7 +211,7 @@ body::after {
 
 .rail-title {
   font-size: 8px;
-  opacity: 0.4;
+  color: rgba(255, 255, 255, 0.6);
   letter-spacing: 0.34em;
   margin-bottom: 4px;
 }
@@ -282,7 +351,7 @@ body::after {
   font-size: 8px;
   letter-spacing: 0.26em;
   text-transform: uppercase;
-  opacity: 0.45;
+  color: rgba(255, 255, 255, 0.6);
   padding-top: 3px;
 }
 
@@ -377,7 +446,7 @@ body::after {
   right: 0;
   text-align: center;
   font-size: 9px;
-  opacity: 0.38;
+  color: rgba(255, 255, 255, 0.6);
   letter-spacing: 0.2em;
   white-space: nowrap;
   overflow: hidden;
