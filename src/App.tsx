@@ -517,6 +517,10 @@ export default function App() {
       onUtterance,
       onError: onVoiceError,
     })
+    // A turn clears the error line, so whether she can hear at all has to be
+    // kept separately — otherwise the HUD goes back to "say Venus" with a dead
+    // microphone.
+    store.getState().setDeaf(!voice.current.live())
 
     store.getState().setPhase('dormant')
   }

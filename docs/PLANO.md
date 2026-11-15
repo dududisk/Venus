@@ -89,10 +89,37 @@ Passos:
 - Voz: ~2 s até o primeiro som de uma frase nova (~0,9 s de arranque do Python e ~1,1 s de rede). Frases curtas repetidas ficam em cache e tocam na hora.
 - Resposta do modelo: em pt-BR, ~4 s.
 
-**Pendente:**
-- Teste de voz ao vivo pelo dono, no PC, para calibrar as variantes da wake word com a voz do dono.
-- Caixa de texto (passo 4).
-- Estados do HUD e marca "VENUS" (passo 5).
+**Passos 4 e 5 (15/11/2026):**
+- Caixa de texto: PRs #4 e #5.
+- Estados do HUD com forma por estado, contraste de 4,5:1 ou mais e a marca VENUS: PR #6.
+
+**Passo 6 — testes e regressão (@hathaway, 15/11/2026):**
+- **Verificações:**
+  - Lint ok, sem avisos depois desta rodada.
+  - Test: 30 passando e 1 pulado (a base da Etapa 0 era 21).
+  - Build ok e `npm audit` com 0.
+- **Ponta a ponta:**
+  - `/stt` transcreveu a amostra pt-BR em 0,16 a 0,57 s.
+  - `/tts` levou ~2,3 s na primeira vez e 0,003 s com cache.
+  - As recusas funcionaram: corpo inválido, Origin e Host estranhos, e o whisper-server sem o segredo.
+  - No navegador, a caixa de texto respondeu em pt-BR e os estados seguiram PENSANDO → FALANDO → OUVINDO.
+- **Achados corrigidos:**
+  - Com o microfone negado, o HUD voltava a pedir "diga Venus". Agora mostra SEM MICROFONE.
+  - `lang` do HTML trocado para `pt-BR`.
+  - Textos que ainda estavam em inglês traduzidos.
+  - Nomes internos no painel SISTEMAS trocados por nomes legíveis.
+  - O log do bridge informava a voz errada; agora mostra os motores reais.
+- **Testes novos:**
+  - `/stt` nas bordas.
+  - `/tts` com o processo de voz quebrado.
+  - Origin e Host nas rotas de voz.
+- **Lacunas que ficam:**
+  - Teste de unidade do lado do navegador para a regra de privacidade (`voice.ts`).
+  - Testes de componente da UI.
+  - Teste do `start.mjs`.
+
+**Pendente para fechar a Etapa 1:**
+- Teste de voz ao vivo pelo dono, no PC, com o microfone liberado no Chrome, para calibrar as variantes da wake word com a voz do dono. Roteiro no relatório da @hathaway, resumido no PR do passo 6.
 - Reescrita da persona: hoje é só uma seção de idioma sobre a persona JARVIS. Decisão do dono.
 
 ## Etapa 2 — Calendário (primeiro leitura, depois escrita)

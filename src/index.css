@@ -91,7 +91,7 @@ body::after {
   letter-spacing: 0.42em;
   text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-
+
 
 .status {
   display: flex;
@@ -133,6 +133,23 @@ body::after {
   border: 1px solid #4f9a9a;
   box-shadow: none;
   animation: none;
+}
+/* No microphone: hollow ring struck through. */
+.state-icon[data-state='deaf'] i:first-child {
+  inset: 1px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  box-shadow: none;
+  animation: none;
+}
+.state-icon[data-state='deaf'] i:nth-child(2) {
+  display: block;
+  left: 5px;
+  top: -1px;
+  width: 1.5px;
+  height: 14px;
+  background: var(--accent);
+  transform: rotate(45deg);
 }
 .state-icon[data-state='waking'] i:nth-child(2),
 .state-icon[data-state='listening'] i:nth-child(2) {
@@ -188,7 +205,7 @@ body::after {
 }
 .status[data-state='offline'] .status-text { color: #4f9a9a; }
 .status[data-state='error'] .status-text { color: #ff6b6b; }
-
+
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }

@@ -588,7 +588,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
   const Ctor =
     (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
   if (!Ctor) {
-    h.onError('This browser has no speech recognition — use Chrome or Edge, or add an ElevenLabs key.')
+    h.onError('Este navegador não tem reconhecimento de fala: use o Chrome ou o Edge.')
     return { stop: () => {}, live: () => false }
   }
 
@@ -758,7 +758,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
         stopped = true
         diag.running = false
-        h.onError('Microphone access was refused — voice input is unavailable.')
+        h.onError('Acesso ao microfone negado: libere o microfone para este site no Chrome.')
       }
     }
     rec.onend = () => {
