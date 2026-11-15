@@ -305,6 +305,16 @@ export default function App() {
     void respond(said)
   }
 
+  /** Typed in the text box: the same turn a spoken sentence becomes, minus the
+   *  wake word. onSpeechStart is what cuts her off if she is mid-answer. */
+  const onTyped = (text: string) => {
+    const phase = store.getState().phase
+    if (phase === 'offline' || phase === 'boot') return
+    store.getState().setError(null)
+    onSpeechStart()
+    void respond(text)
+  }
+
   const onPartial = (text: string) => {
     store.getState().setCaption(text)
   }
@@ -558,8 +568,10 @@ export default function App() {
     pump()
 
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const el = e.target as HTMLElement
+      const tag = el?.tagName
+      // A focused button needs its own Space/Enter; typing needs every key.
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || el?.isContentEditable) return
 
       // V auditions the next British voice installed on this machine. Which
       // ones exist varies per Mac, so hearing them beats trusting a ranking.
@@ -678,7 +690,7 @@ export default function App() {
   return (
     <>
       <Scene />
-      <Hud />
+      <Hud onSend={onTyped} />
       <Boot />
       <Diagnostics />
       <Ignition onStart={() => void powerOn()} />
