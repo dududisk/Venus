@@ -297,7 +297,7 @@ body::after {
 .caption {
   position: absolute;
   left: 50%;
-  bottom: 88px;
+  bottom: 98px;
   transform: translateX(-50%);
   font-size: 16px;
   text-transform: none;
@@ -311,7 +311,8 @@ body::after {
 .error {
   position: absolute;
   left: 50%;
-  bottom: 52px;
+  /* Below the hint line: the text box now owns 62–90px. */
+  bottom: 24px;
   transform: translateX(-50%);
   color: #ff6b6b;
   font-size: 10px;
@@ -320,6 +321,54 @@ body::after {
   max-width: 70vw;
   text-align: center;
 }
+
+/* Typing to Venus. Sits between the caption and the hint line (44px).
+   Text is plain white on the near-black ground (well past 4.5:1); the
+   placeholder is 70% white, still above 4.5:1 there. */
+.textbox {
+  position: absolute;
+  left: 50%;
+  bottom: 62px;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+.textbox input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: rgba(2, 10, 12, 0.72);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 2px;
+  outline: none;
+}
+.textbox input::placeholder { color: rgba(255, 255, 255, 0.7); }
+.textbox input:focus-visible,
+.textbox button:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.textbox button {
+  width: 32px;
+  height: 28px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--accent);
+  background: rgba(2, 10, 12, 0.72);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+}
+.textbox :disabled { opacity: 0.45; cursor: default; }
 
 .hud-bottom {
   position: absolute;
@@ -330,6 +379,9 @@ body::after {
   font-size: 9px;
   opacity: 0.38;
   letter-spacing: 0.2em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 kbd {
@@ -776,7 +828,7 @@ kbd {
 .suggest {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: 98px;
   transform: translateX(-50%);
   display: flex;
   align-items: baseline;
