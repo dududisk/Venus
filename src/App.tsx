@@ -12,9 +12,8 @@ import * as music from './lib/music'
 import * as hands from './lib/hands'
 import { listenForClap } from './lib/clap'
 import * as camera from './lib/camera'
-import * as kokoro from './lib/kokoro'
-import { TTS_ENGINE } from './config'
 import { forTool, attention } from './lib/fillers'
+import { NAME, PREFIX } from './lib/ptbr'
 import {
   ask,
   warm,
@@ -61,13 +60,12 @@ const newId = () =>
   globalThis.crypto?.randomUUID?.() ??
   `id${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
 
-/** The same mishearings voice.ts accepts for the wake word — otherwise a turn
- *  that woke him as "travis" gets that word sent on to the model as a question. */
-const NAME = '(?:jarvis|jarvys|jervis|travis|jarviss|java\'s|jarv)'
-/** A bare vocative — "Jarvis", "hey jarvis" — with nothing asked. */
-const BARE_NAME = new RegExp(`^(?:hey|hi|ok|okay|yo)?\\s*${NAME}[\\s,.!?]*$`, 'i')
-/** A leading vocative on a real command: "Jarvis, what's the weather". */
-const LEADING_NAME = new RegExp(`^(?:hey|hi|ok|okay|yo)?\\s*${NAME}\\b[\\s,.:!?-]*`, 'i')
+/* The same mishearings voice.ts accepts for the wake word (ptbr.ts) — otherwise
+ * a turn that woke her as "bênus" gets that word sent on to the model. */
+/** A bare vocative — "Venus", "oi Vênus" — with nothing asked. */
+const BARE_NAME = new RegExp(`^(?:${PREFIX}[\\s,]*)?${NAME}[\\s,.!?]*$`, 'iu')
+/** A leading vocative on a real command: "Vênus, que horas são". */
+const LEADING_NAME = new RegExp(`^(?:${PREFIX}[\\s,]*)?${NAME}(?![\\p{L}\\d])[\\s,.:!?-]*`, 'iu')
 
 export default function App() {
   const store = useStore
@@ -84,7 +82,6 @@ export default function App() {
   const turn = useRef(0)
   const booting = useRef(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const voicePoll = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // -- helpers --------------------------------------------------------------
 
@@ -469,24 +466,6 @@ export default function App() {
       )
     }
 
-    // Pull the neural voice down during the boot sequence so the first
-    // "Hey Jarvis" isn't waiting on an 86MB download. Deliberately not awaited
-    // — if it's slow, JARVIS comes up on the system voice and swaps over the
-    // moment the model is ready.
-    if (TTS_ENGINE === 'kokoro') {
-      void kokoro.load()
-      voicePoll.current = setInterval(() => {
-        const p = kokoro.loadProgress()
-        if (kokoro.isReady() || kokoro.isUnavailable()) {
-          store.getState().setBootNote('')
-          if (voicePoll.current) clearInterval(voicePoll.current)
-          voicePoll.current = null
-        } else if (p > 0 && p < 1) {
-          store.getState().setBootNote(`voice ${Math.round(p * 100)}%`)
-        }
-      }, 200)
-    }
-
     // Long enough for the four-beat start-up sequence in Boot.tsx to play —
     // status bar, rings, suit schematic, reactor power-up — before the live
     // interface takes over. Kept a touch under the boot cue so the music is
@@ -598,7 +577,7 @@ export default function App() {
         silence()
         const demo = createSpeaker()
         speaker.current = demo
-        demo.say(`Voice set to ${name.replace(/\(.*?\)/g, '').trim()}. At your service, sir.`)
+        demo.say(`Voz alterada para ${name.replace(/\(.*?\)/g, '').trim()}. Às ordens.`)
         void demo.end()
         return
       }
@@ -640,7 +619,7 @@ export default function App() {
         silence()
         const t = createSpeaker()
         speaker.current = t
-        t.say('Audio test. If you can hear this, speech output is working, sir.')
+        t.say('Teste de áudio. Se você está ouvindo isto, a fala está funcionando.')
         void t.end().then(() => {
           const d = (window as unknown as Record<string, Record<string, unknown>>).__tts
           console.info('[jarvis] audio test →', d)
@@ -688,7 +667,6 @@ export default function App() {
       cancelAnimationFrame(raf)
       window.removeEventListener('keydown', onKey)
       clearIdle()
-      if (voicePoll.current) clearInterval(voicePoll.current)
       voice.current?.stop()
       speaker.current?.cancel()
       // The camera must not outlive the page that turned it on.

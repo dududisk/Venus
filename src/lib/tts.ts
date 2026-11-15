@@ -1,12 +1,4 @@
-import {
-  env,
-  USE_ELEVENLABS,
-  BACKEND,
-  TTS_ENGINE,
-  KOKORO_VOICE,
-  BRIDGE_HTTP_URL,
-} from '../config'
-import * as kokoro from './kokoro'
+import { env, USE_ELEVENLABS, BACKEND, BRIDGE_HTTP_URL } from '../config'
 import { caps } from './capabilities'
 
 /**
@@ -62,7 +54,8 @@ const ECHO_TAIL_MS = 1800
  * indistinguishable. This tells them apart at a glance.
  */
 export const diag = {
-  engine: 'system' as 'system' | 'kokoro' | 'elevenlabs',
+  /** 'elevenlabs' means the bridge's /tts — ElevenLabs or, for Venus, edge-tts. */
+  engine: 'system' as 'system' | 'elevenlabs',
   /** Utterances handed to an engine — the OS voice or an audio element. */
   spoken: 0,
   /**
@@ -165,54 +158,32 @@ const MAX_UNSPOKEN = 220
 const VOICE_PREF_KEY = 'jarvis.voice'
 
 /**
- * Rank installed voices by how close they are to the character: a British
- * male, low and level, not a novelty voice.
+ * Rank installed pt-BR voices. Only matters without the bridge's voice (Venus
+ * normally speaks with Francisca through /tts); this is the fallback.
  *
- * The big win on macOS is the Enhanced/Premium variant of Daniel. The stock
- * "Daniel" is a compact voice from a decade ago and sounds it; the Enhanced
- * download is free (System Settings → Accessibility → Spoken Content → System
- * Voice → Manage Voices) and once installed it appears here automatically.
+ * The neural "Online (Natural)" voices Edge exposes are far ahead of the
+ * classic Windows ones, so they rank first wherever they exist.
  */
 function score(v: SpeechSynthesisVoice): number {
   const n = v.name.toLowerCase()
   let s = 0
-
-  // The macOS British male, and the closest thing to the character available
-  // without leaving the machine.
-  if (n.startsWith('daniel')) s += 100
-  else if (n.includes('google uk english male')) s += 85
-  else if (/\b(oliver|arthur|jamie|malcolm)\b/.test(n)) s += 80
-  // Newer macOS en-GB male voices — casual, but serviceable.
-  else if (/\b(reed|rocko|eddy)\b/.test(n)) s += 40
-
-  // Higher-quality variants of whatever matched above.
-  if (n.includes('premium')) s += 30
-  else if (n.includes('enhanced')) s += 20
-
-  if (/en[-_]gb/i.test(v.lang)) s += 25
-  else if (/^en/i.test(v.lang)) s += 5
-
-  // Voices that clearly aren't a butler.
-  if (/grandma|grandpa|bubbles|jester|bells|boing|whisper|zarvox|superstar|trinoids|wobble|bahh|organ|cellos|bad news|good news/.test(n)) {
-    s -= 200
-  }
-  // Female-presenting names across the English sets.
-  if (/\b(flo|sandy|shelley|kate|serena|fiona|moira|karen|tessa|samantha|zoe|allison|ava|susan)\b/.test(n)) {
-    s -= 60
-  }
-
+  if (/francisca|thalita/.test(n)) s += 100
+  else if (/antonio/.test(n)) s += 90
+  else if (n.includes('google') && n.includes('portugu')) s += 70
+  else if (/\b(maria|daniel)\b/.test(n)) s += 40
+  if (/natural|online/.test(n)) s += 20
+  if (/pt[-_]br/i.test(v.lang)) s += 25
   return s
 }
 
-/** Only voices that scored on a name match, not merely on being English —
- *  otherwise the picker cycles through a dozen US novelty voices. */
+/** Only voices that scored on a name match, not merely on being Portuguese. */
 const USABLE = 40
 
 /** Best-first list of usable voices — also what the voice picker cycles. */
 export function candidateVoices(): SpeechSynthesisVoice[] {
   return speechSynthesis
     .getVoices()
-    .filter((v) => /^en/i.test(v.lang))
+    .filter((v) => /^pt/i.test(v.lang))
     .map((v) => ({ v, s: score(v) }))
     .filter((x) => x.s >= USABLE)
     .sort((a, b) => b.s - a.s)
@@ -236,7 +207,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
     localStorage.removeItem(VOICE_PREF_KEY)
   }
 
-  cachedVoice = candidateVoices()[0] ?? all.find((v) => /^en/i.test(v.lang)) ?? null
+  cachedVoice = candidateVoices()[0] ?? all.find((v) => /^pt/i.test(v.lang)) ?? null
   return cachedVoice
 }
 
@@ -244,10 +215,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
  *  always naming a speechSynthesis voice that a cloud or neural engine has
  *  quietly replaced. */
 export function currentVoiceName(): string {
-  if (USE_ELEVENLABS || caps().tts) return 'ElevenLabs'
-  if (TTS_ENGINE === 'kokoro' && !kokoro.isUnavailable()) {
-    return KOKORO_VOICE.replace(/^bm_/, '')
-  }
+  if (USE_ELEVENLABS || caps().tts) return caps().label || 'ElevenLabs'
   return pickVoice()?.name ?? 'default'
 }
 
@@ -387,10 +355,6 @@ export function createSpeaker(): Speaker {
       diag.engine = 'elevenlabs'
       return fetchCloudAudio(text).catch(() => null)
     }
-    if (TTS_ENGINE === 'kokoro' && !kokoro.isUnavailable()) {
-      diag.engine = 'kokoro'
-      return kokoro.speak(text).catch(() => null)
-    }
     diag.engine = 'system'
     return null
   }
@@ -477,7 +441,7 @@ export function createSpeaker(): Speaker {
       const u = new SpeechSynthesisUtterance(text)
       const voice = pickVoice()
       if (voice) u.voice = voice
-      u.lang = voice?.lang ?? 'en-GB'
+      u.lang = voice?.lang ?? 'pt-BR'
       // Deliberate, and deliberately invariant — the character's pace does not
       // change with stakes, and that steadiness is most of the effect. This
       // lands around 130 wpm, below the median for film dialogue.
@@ -591,7 +555,7 @@ export function createSpeaker(): Speaker {
       // see the onplaying handler below.
       diag.spoken++
       diag.lastText = text.slice(0, 60)
-      diag.voice = diag.engine === 'kokoro' ? KOKORO_VOICE : 'ElevenLabs'
+      diag.voice = caps().label || 'ElevenLabs'
 
       let read: (() => number) | null = null
       const ctx = outputContext()
@@ -745,6 +709,9 @@ async function fetchCloudAudio(text: string): Promise<string | null> {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text }),
+        // A hung voice service must not stall the whole answer; on timeout the
+        // catch below falls through to the next tier.
+        signal: AbortSignal.timeout(20_000),
       })
       if (res.ok) return URL.createObjectURL(await res.blob())
     } catch {

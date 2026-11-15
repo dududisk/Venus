@@ -77,6 +77,24 @@ Passos:
 
 **Pronto quando:** dá para pedir algo por voz e por texto em pt-BR, a wake word é "Venus", e lint, test e build passam.
 
+**Decisões do dono (15/11/2026)**, a partir da pesquisa do @thimote (`docs/pesquisa/etapa-1-voz.md`):
+- **Navegador:** Chrome.
+- **Privacidade:** o áudio do microfone **não** vai para a nuvem. O passo 3 mudou: no lugar do `SpeechRecognition`, a voz é detectada localmente (`vad.ts`), convertida para WAV de 16 kHz no navegador e transcrita pelo whisper.cpp (`whisper-server`, modelo `large-v3-turbo` q5_0) rodando na GPU (RTX 4060), via `/stt` do bridge. O Chrome 157 não oferece reconhecimento local de pt-BR (`processLocally` deu "unavailable").
+- **Voz:** a Francisca (`pt-BR-FranciscaNeural`, voz neural da Microsoft), pelo `edge-tts`, de graça. Maria e Daniel (vozes locais do Windows) foram recusadas pela qualidade. Só o texto falado sai do PC.
+- **Kokoro:** removido; o `npm audit` foi a 0 vulnerabilidades.
+- **Instalação local**, fora do repositório, em `~/.jarvis`: o whisper.cpp b5454 CUDA 11.8, o cuBLAS 11 (da NVIDIA, pelo PyPI), o modelo e um venv com `edge-tts` 7.3.1. Hashes conferidos. O `npm start` sobe o `whisper-server` sozinho quando encontra esses arquivos.
+
+**Medido (15/11/2026):**
+- Transcrição: 0,16–0,47 s por frase na GPU; na CPU seriam 8 a 16 s.
+- Voz: ~2 s até o primeiro som de uma frase nova (~0,9 s de arranque do Python e ~1,1 s de rede). Frases curtas repetidas ficam em cache e tocam na hora.
+- Resposta do modelo: em pt-BR, ~4 s.
+
+**Pendente:**
+- Teste de voz ao vivo pelo dono, no PC, para calibrar as variantes da wake word com a voz do dono.
+- Caixa de texto (passo 4).
+- Estados do HUD e marca "VENUS" (passo 5).
+- Reescrita da persona: hoje é só uma seção de idioma sobre a persona JARVIS. Decisão do dono.
+
 ## Etapa 2 — Calendário (primeiro leitura, depois escrita)
 
 **Objetivo:** ver a agenda e marcar reuniões com confirmação do dono.
@@ -153,4 +171,4 @@ Passos:
 2. Pastas: respondido (ver Etapa 3). Falta listar os projetos e comandos permitidos.
 3. WhatsApp: número próprio da Venus (respondido). Falta saber se o número já existe e se já foi usado em algum WhatsApp.
 4. Variáveis `JARVIS_*` e `VITE_*`: a recomendação é manter e renomear só o que o usuário vê. Aguarda confirmação do dono.
-5. O áudio da wake word (motor `speech`) passa pelo Google. O dono aceita?
+5. O áudio da wake word passa pelo Google? Respondido: não aceito. A transcrição é local (Whisper na GPU); ver a Etapa 1.
