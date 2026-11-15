@@ -305,6 +305,16 @@ export default function App() {
     void respond(said)
   }
 
+  /** Typed in the text box: the same turn a spoken sentence becomes, minus the
+   *  wake word. onSpeechStart is what cuts her off if she is mid-answer. */
+  const onTyped = (text: string) => {
+    const phase = store.getState().phase
+    if (phase === 'offline' || phase === 'boot') return
+    store.getState().setError(null)
+    onSpeechStart()
+    void respond(text)
+  }
+
   const onPartial = (text: string) => {
     store.getState().setCaption(text)
   }
@@ -678,7 +688,7 @@ export default function App() {
   return (
     <>
       <Scene />
-      <Hud />
+      <Hud onSend={onTyped} />
       <Boot />
       <Diagnostics />
       <Ignition onStart={() => void powerOn()} />

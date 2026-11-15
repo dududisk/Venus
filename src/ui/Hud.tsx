@@ -144,9 +144,64 @@ function DecodeText({ text }: { text: string }) {
   )
 }
 
+/* ---------------------------------------------------------------- text box */
+
+/**
+ * Typing instead of talking. Goes down exactly the path a recognised sentence
+ * does (App's onTyped → respond), so it interrupts her the same way and needs
+ * no wake word. `/` focuses it from anywhere; Esc gives the keyboard back to
+ * the shortcuts.
+ */
+function TextBox({ onSend, disabled }: { onSend: (text: string) => void; disabled: boolean }) {
+  const [text, setText] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault()
+        input.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  return (
+    <form
+      className="textbox"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const said = text.trim()
+        if (!said || disabled) return
+        onSend(said)
+        setText('')
+      }}
+    >
+      <input
+        ref={input}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
+        placeholder="Escreva para a Venus…  ( / )"
+        aria-label="Mensagem para a Venus"
+        maxLength={2000}
+        autoComplete="off"
+        spellCheck
+        lang="pt-BR"
+        disabled={disabled}
+      />
+      <button type="submit" disabled={disabled || !text.trim()} aria-label="Enviar">
+        ↵
+      </button>
+    </form>
+  )
+}
+
 /* --------------------------------------------------------------------- hud */
 
-export function Hud() {
+export function Hud({ onSend }: { onSend: (text: string) => void }) {
   const phase = useStore((s) => s.phase)
   const caption = useStore((s) => s.caption)
   const turns = useStore((s) => s.turns)
@@ -310,9 +365,11 @@ export function Hud() {
 
       {error && <div className="error">{error}</div>}
 
+      <TextBox onSend={onSend} disabled={phase === 'offline' || phase === 'boot'} />
+
       <footer className="hud-bottom">
         <span className="hint">
-          say <b>“hey jarvis”</b> · <kbd>Space</kbd> to talk · <kbd>G</kbd> hands
+          diga <b>“Venus”</b> · <kbd>/</kbd> para escrever · <kbd>Space</kbd> para falar · <kbd>G</kbd> mãos
           {voice && (
             <>
               {' · '}
